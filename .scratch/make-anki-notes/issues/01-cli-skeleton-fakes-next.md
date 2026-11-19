@@ -1,6 +1,6 @@
 # 01 — CLI skeleton, in-memory fakes, `next`
 
-Status: ready-for-agent
+Status: done
 Blocked by: none
 
 Spec: `../spec.md` (sections "CLI commands", "Sheet adapter", "Configuration", "Testing Decisions").
@@ -17,10 +17,10 @@ The foundation every other ticket builds on:
 
 ## Acceptance criteria
 
-- [ ] `next` prints the topmost Pending row: Row number (sheet row number, header = 1) plus english, russian, comment.
-- [ ] Blank, Added (`1`) and Discarded (`-`) Rows are skipped.
-- [ ] english-only and russian-only Rows are offered.
-- [ ] Columns are found by header name, even when moved; unnamed columns are ignored.
-- [ ] Prints a nothing-left result when no Pending rows remain.
-- [ ] Supports a skip argument (e.g. `--exclude 9,23`) so the skill can step past Skipped Rows.
-- [ ] Tests through the command layer against the fakes only.
+- [x] `next` prints the topmost Pending row: Row number (sheet row number, header = 1) plus english, russian, comment.
+- [x] Blank, Added (`1`) and Discarded (`-`) Rows are skipped.
+- [x] english-only and russian-only Rows are offered.
+- [x] Columns are found by header name, even when moved; unnamed columns are ignored.
+- [x] Prints a nothing-left result when no Pending rows remain.
+- [x] Supports a skip argument (e.g. `--exclude 9,23`) so the skill can step past Skipped Rows.
+- [x] Tests through the command layer against the fakes only.

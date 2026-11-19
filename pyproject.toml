@@ -1,7 +1,25 @@
 [project]
 name = "english-anki-cards"
 version = "0.1.0"
-description = "Add your description here"
+description = "Turn sentences jotted down in a Google Sheet into Anki Notes"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
+
+[project.scripts]
+anki-notes = "anki_notes.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.8,<1"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "anki_notes"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

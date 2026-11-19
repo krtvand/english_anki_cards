@@ -1,6 +1,6 @@
 # 07 — Real adapters: gspread Sheet + AnkiConnect, wiring
 
-Status: ready-for-agent
+Status: done
 Blocked by: 01
 
 Spec: `../spec.md` ("Sheet adapter", "Anki adapter", "Configuration"); ADRs `docs/adr/0001-*`, `docs/adr/0002-*`.
@@ -14,6 +14,6 @@ Spec: `../spec.md` ("Sheet adapter", "Anki adapter", "Configuration"); ADRs `doc
 
 ## Acceptance criteria
 
-- [ ] Adapters are thin; not tested against the real services (spec says verified by hand). A unit test may cover pure helpers only.
-- [ ] `uv run anki-notes --help` works; dependencies added via `uv add`.
-- [ ] README section on one-time setup (AnkiConnect, share Sheet with service account, key.json).
+- [x] Adapters are thin; not tested against the real services (spec says verified by hand). A unit test may cover pure helpers only.
+- [x] `uv run anki-notes --help` works; dependencies added via `uv add`.
+- [x] README section on one-time setup (AnkiConnect, share Sheet with service account, key.json).

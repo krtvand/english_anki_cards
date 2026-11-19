@@ -27,6 +27,12 @@ def next_row(sheet: SheetPort, anki: AnkiPort, exclude: frozenset[int] = frozens
     return {"nothing_left": True}
 
 
+def sync(anki: AnkiPort) -> dict:
+    """Ask Anki to sync, so new Notes reach the phone."""
+    anki.sync()
+    return {"synced": True}
+
+
 def locate_row(sheet: SheetPort, row: int, english: str, russian: str) -> tuple[Columns, Row]:
     """Find the Row a write command refers to: the Row number and the english/russian that
     `next` printed. The Row number wins if its english/russian still match; otherwise the one

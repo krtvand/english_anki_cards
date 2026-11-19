@@ -2,11 +2,14 @@
 
 import argparse
 import json
+import os
 import sys
-from typing import TextIO
+from pathlib import Path
+from typing import Callable, TextIO
 
-from anki_notes import commands
+from anki_notes import adapters, commands
 from anki_notes.ports import AnkiPort, SheetPort
+from anki_notes.reachability import Clock, ReachableAnki, SystemClock, launch_anki_app
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -35,6 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     update.add_argument("--note-id", type=int, required=True, help="id of the Note to update, as find printed it")
     update.add_argument("--new-english", default="", help="new english for the Note")
     update.add_argument("--new-comment", default="", help="new comment for the Note (plain text/Markdown)")
+    sub.add_parser("sync", help="ask Anki to sync")
     return parser
 
 
@@ -49,9 +53,21 @@ def _row_numbers(text: str) -> frozenset[int]:
     return frozenset(int(part) for part in text.split(",") if part.strip())
 
 
-def run_command(argv: list[str], *, sheet: SheetPort, anki: AnkiPort, out: TextIO) -> int:
-    """Run one command against the given ports, write its JSON to `out`, return the exit code."""
+def run_command(
+    argv: list[str],
+    *,
+    sheet: SheetPort,
+    anki: AnkiPort,
+    out: TextIO,
+    launch_anki: Callable[[], None] = launch_anki_app,
+    clock: Clock | None = None,
+) -> int:
+    """Run one command against the given ports, write its JSON to `out`, return the exit code.
+
+    The Anki port is wrapped so the first Anki call launches Anki (via `launch_anki`) and
+    waits for it if it isn't answering. A `CommandError` prints {"error": ...} and exits 1."""
     args = _parser().parse_args(argv)
+    anki = ReachableAnki(anki, launch=launch_anki, clock=clock or SystemClock())
     try:
         if args.command == "next":
             result = commands.next_row(sheet, anki, exclude=args.exclude)
@@ -64,6 +80,8 @@ def run_command(argv: list[str], *, sheet: SheetPort, anki: AnkiPort, out: TextI
                 sheet, anki, args.row, args.english, args.russian,
                 note_id=args.note_id, new_english=args.new_english, new_comment=args.new_comment,
             )
+        elif args.command == "sync":
+            result = commands.sync(anki)
         code = 0
     except commands.CommandError as error:
         result = {"error": str(error)}
@@ -74,7 +92,15 @@ def run_command(argv: list[str], *, sheet: SheetPort, anki: AnkiPort, out: TextI
 
 
 def main() -> int:
-    raise NotImplementedError("real Sheet and Anki adapters arrive in ticket 07")
+    """Console script entry point: the real Sheet and Anki adapters, output to stdout."""
+    repo_root = adapters.find_repo_root(Path(__file__).resolve())
+    key_file = adapters.credentials_path(os.environ, repo_root)
+    return run_command(
+        sys.argv[1:],
+        sheet=adapters.GSpreadSheet(key_file),
+        anki=adapters.AnkiConnect(),
+        out=sys.stdout,
+    )
 
 
 if __name__ == "__main__":

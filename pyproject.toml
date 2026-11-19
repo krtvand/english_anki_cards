@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Turn sentences jotted down in a Google Sheet into Anki Notes"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "gspread>=6.2.1",
+]
 
 [project.scripts]
 anki-notes = "anki_notes.cli:main"

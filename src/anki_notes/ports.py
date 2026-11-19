@@ -29,7 +29,7 @@ class SheetPort(Protocol):
 
 
 class AnkiPort(Protocol):
-    """The `Sentenses` deck, spoken to in AnkiConnect's terms. Note fields are keyed by
+    """The `Sentenses` deck in the running Anki, spoken to in AnkiConnect's terms. Note fields are keyed by
     their lowercase names: "english", "russian", "comment"."""
 
     def find_notes(self, query: str) -> list[int]:
@@ -47,4 +47,12 @@ class AnkiPort(Protocol):
 
     def update_note(self, note_id: int, fields: dict[str, str]) -> None:
         """Set the given fields of an existing Note; other fields are left as they are."""
+        ...
+
+    def ping(self) -> bool:
+        """Whether Anki is answering right now. Cheap; must not raise when Anki is down."""
+        ...
+
+    def sync(self) -> None:
+        """Ask Anki to run its own sync (to AnkiWeb)."""
         ...

@@ -1,6 +1,6 @@
 # 08 — The `make-anki-notes` Claude Code skill
 
-Status: ready-for-agent
+Status: done
 Blocked by: 03, 04, 05
 
 Spec: `../spec.md` ("Solution", "Split of responsibilities", "Skill flow (one session)", user stories 1–30, 42–43); vocabulary `GLOSSARY.md`.

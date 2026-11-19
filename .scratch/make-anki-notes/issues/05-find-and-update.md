@@ -1,6 +1,6 @@
 # 05 — `find` and `update` (Merge)
 
-Status: ready-for-agent
+Status: done
 Blocked by: 02
 
 Spec: `../spec.md` ("CLI commands: find, update"; user stories 26–30).
@@ -12,6 +12,6 @@ Spec: `../spec.md` ("CLI commands: find, update"; user stories 26–30).
 
 ## Acceptance criteria
 
-- [ ] `find` returns Notes matching by Target phrase in russian and by english words; returns empty list when none.
-- [ ] `update` changes the existing Note's fields, adds no Note, marks the Row `1`.
-- [ ] `update` on an unknown Note id fails clearly and leaves the Sheet unchanged.
+- [x] `find` returns Notes matching by Target phrase in russian and by english words; returns empty list when none.
+- [x] `update` changes the existing Note's fields, adds no Note, marks the Row `1`.
+- [x] `update` on an unknown Note id fails clearly and leaves the Sheet unchanged.

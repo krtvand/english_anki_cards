@@ -10,6 +10,7 @@ from anki_notes.adapters import (
     credentials_path,
     find_repo_root,
     note_from_info,
+    notes_from_infos,
     unwrap,
 )
 
@@ -36,6 +37,11 @@ def test_notes_info_entry_is_flattened_to_id_and_the_three_fields():
 def test_notes_info_entry_missing_a_field_reads_it_as_empty():
     info = {"noteId": 5, "fields": {"english": {"value": "Hi", "order": 0}}}
     assert note_from_info(info) == {"id": 5, "english": "Hi", "russian": "", "comment": ""}
+
+
+def test_notes_info_leaves_out_unknown_ids_which_ankiconnect_answers_with_empty_entries():
+    infos = [{}, {"noteId": 5, "fields": {"english": {"value": "Hi", "order": 0}}}]
+    assert notes_from_infos(infos) == [{"id": 5, "english": "Hi", "russian": "", "comment": ""}]
 
 
 def test_ankiconnect_reply_yields_its_result():

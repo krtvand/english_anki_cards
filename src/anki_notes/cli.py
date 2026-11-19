@@ -32,6 +32,20 @@ def _parser() -> argparse.ArgumentParser:
         help='JSON list of Notes, e.g. \'[{"english": "...", "russian": "...", "comment": "..."}]\'; '
         "pass - to read it from stdin",
     )
+    find = sub.add_parser("find", help="search the deck for Notes like this Row")
+    find.add_argument("--target", default="", help="Target phrase; matches Notes whose russian contains it")
+    find.add_argument(
+        "--english",
+        default="",
+        help="english sentence; matches Notes whose english contains most of its significant "
+        "words (3+ letters, not a stop word): all of them when there are one or two, "
+        "otherwise at least two thirds",
+    )
+    update = sub.add_parser("update", help="Merge the Row into an existing Note and mark the Row 1")
+    _add_row_reference(update)
+    update.add_argument("--note-id", type=int, required=True, help="id of the Note to update, as find printed it")
+    update.add_argument("--new-english", default="", help="new english for the Note")
+    update.add_argument("--new-comment", default="", help="new comment for the Note (plain text/Markdown)")
     sub.add_parser("sync", help="ask Anki to sync")
     return parser
 
@@ -93,6 +107,13 @@ def run_command(
             notes_json = (stdin or sys.stdin).read() if args.notes_json == "-" else args.notes_json
             result = commands.add(
                 sheet, anki, args.row, args.english, args.russian, _parse_notes(notes_json)
+            )
+        elif args.command == "find":
+            result = commands.find(anki, target=args.target, english=args.english)
+        elif args.command == "update":
+            result = commands.update(
+                sheet, anki, args.row, args.english, args.russian,
+                note_id=args.note_id, new_english=args.new_english, new_comment=args.new_comment,
             )
         elif args.command == "sync":
             result = commands.sync(anki)

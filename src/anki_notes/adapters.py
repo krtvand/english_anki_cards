@@ -40,6 +40,11 @@ def note_from_info(info: dict) -> dict:
     }
 
 
+def notes_from_infos(infos: list[dict]) -> list[dict]:
+    """A `notesInfo` reply flattened; the empty entries AnkiConnect gives unknown ids are left out."""
+    return [note_from_info(info) for info in infos if info.get("noteId") is not None]
+
+
 def find_repo_root(start: Path) -> Path:
     """The nearest folder at or above `start` holding `pyproject.toml`; the current folder if none."""
     for folder in [start, *start.parents]:
@@ -130,7 +135,7 @@ class AnkiConnect:
         ids = list(ids)
         if not ids:
             return []
-        return [note_from_info(info) for info in self._invoke("notesInfo", notes=ids)]
+        return notes_from_infos(self._invoke("notesInfo", notes=ids))
 
     def add_note(self, english: str, russian: str, comment: str) -> int:
         """Add a `Sentences` note to the deck, no tags; returns its id."""

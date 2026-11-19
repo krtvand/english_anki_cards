@@ -1,7 +1,7 @@
 """In-memory stand-ins for the Sheet and Anki ports. Tests read and set their state directly."""
 
+import dataclasses
 import re
-from dataclasses import replace
 
 from anki_notes import constants as c
 from anki_notes.ports import Note
@@ -28,14 +28,41 @@ class FakeSheet:
             cells[index] = value
 
 
+_TERM = re.compile(r'"((?:[^"\\]|\\.)*)"|(\S+)')
+_UNESCAPED_COLON = re.compile(r"(?<!\\):")
+
+
 class FakeAnki:
-    """The deck as a dict of Notes keyed by note id."""
+    """The deck as a dict of Notes keyed by note id.
+
+    `find_notes` understands only the query shapes the commands emit: space-separated
+    (optionally double-quoted) terms, ANDed, each either `deck:NAME` or `field:*text*`
+    (case-insensitive "field contains text", with backslash-escaped special characters)."""
 
     def __init__(self, notes: dict[int, Note] | None = None, *, answering: bool = True):
         self.notes: dict[int, Note] = dict(notes or {})
         self.answering = answering  # set False to play "Anki isn't running"
         self.syncs = 0
         self._up_at: tuple["FakeClock", float] | None = None
+
+    def find_notes(self, query: str) -> list[int]:
+        terms = [quoted if quoted is not None else bare for quoted, bare in _TERM.findall(query)]
+        return [note_id for note_id, note in self.notes.items() if all(_matches(t, note) for t in terms)]
+
+    def notes_info(self, ids: list[int]) -> list[dict]:
+        return [
+            {"id": i, **dataclasses.asdict(self.notes[i])} for i in ids if i in self.notes
+        ]
+
+    def add_note(self, english: str, russian: str, comment: str) -> int:
+        note_id = max(self.notes, default=1000) + 1
+        self.notes[note_id] = Note(english, russian, comment)
+        return note_id
+
+    def update_note(self, note_id: int, fields: dict[str, str]) -> None:
+        if note_id not in self.notes:
+            raise KeyError(note_id)
+        self.notes[note_id] = dataclasses.replace(self.notes[note_id], **fields)
 
     def come_up_at(self, clock: "FakeClock", when: float) -> None:
         """Start answering once `clock` reaches `when` (Anki still starting up until then)."""
@@ -49,44 +76,15 @@ class FakeAnki:
     def sync(self) -> None:
         self.syncs += 1
 
-    def find_notes(self, query: str) -> list[int]:
-        """Understands only `deck:<deck> "<field>:<glob>"`: an exact (case-insensitive)
-        whole-field match where `*` is any text, `_` one character, and `\\` escapes."""
-        m = re.fullmatch(r'deck:(\S+) "(\w+):((?:[^"\\]|\\.)*)"', query)
-        if m is None:
-            raise ValueError(f"FakeAnki does not understand the query {query!r}")
-        deck, field, glob = m.groups()
-        if deck != c.DECK:
-            return []
-        pattern = re.compile(_glob_to_regex(glob), re.IGNORECASE | re.DOTALL)
-        return [i for i, n in self.notes.items() if pattern.fullmatch(getattr(n, field))]
 
-    def notes_info(self, ids: list[int]) -> list[dict]:
-        return [
-            {"id": i, "english": n.english, "russian": n.russian, "comment": n.comment}
-            for i, n in ((i, self.notes[i]) for i in ids)
-        ]
-
-    def add_note(self, english: str, russian: str, comment: str) -> int:
-        note_id = max(self.notes, default=1_700_000_000_000) + 1
-        self.notes[note_id] = Note(english, russian, comment)
-        return note_id
-
-    def update_note(self, note_id: int, fields: dict[str, str]) -> None:
-        self.notes[note_id] = replace(self.notes[note_id], **fields)
-
-
-def _glob_to_regex(glob: str) -> str:
-    out, i = [], 0
-    while i < len(glob):
-        ch = glob[i]
-        if ch == "\\" and i + 1 < len(glob):
-            out.append(re.escape(glob[i + 1]))
-            i += 2
-            continue
-        out.append(".*" if ch == "*" else "." if ch == "_" else re.escape(ch))
-        i += 1
-    return "".join(out)
+def _matches(term: str, note: Note) -> bool:
+    field, pattern = _UNESCAPED_COLON.split(term.replace('\\"', '"'), maxsplit=1)
+    if field == "deck":
+        return pattern == c.DECK
+    if not (pattern.startswith("*") and pattern.endswith("*")):
+        raise ValueError(f"FakeAnki only understands field:*text* terms, got {term!r}")
+    text = re.sub(r"\\(.)", r"\1", pattern[1:-1])
+    return text.casefold() in getattr(note, field).casefold()
 
 
 class FakeClock:

@@ -20,8 +20,17 @@ def _parser() -> argparse.ArgumentParser:
         default=frozenset(),
         help="comma-separated Row numbers to step past (Skipped Rows), e.g. 9,23",
     )
+    discard = sub.add_parser("discard", help="mark a Row Discarded (-)")
+    _add_row_reference(discard)
     sub.add_parser("sync", help="ask Anki to sync")
     return parser
+
+
+def _add_row_reference(parser: argparse.ArgumentParser) -> None:
+    """The Row reference every write command takes: Row number plus english/russian as `next` printed them."""
+    parser.add_argument("--row", type=int, required=True, help="Row number as printed by next")
+    parser.add_argument("--english", default="", help="the Row's english as printed by next")
+    parser.add_argument("--russian", default="", help="the Row's russian as printed by next")
 
 
 def _row_numbers(text: str) -> frozenset[int]:
@@ -46,18 +55,17 @@ def run_command(
     try:
         if args.command == "next":
             result = commands.next_row(sheet, anki, exclude=args.exclude)
+        elif args.command == "discard":
+            result = commands.discard(sheet, anki, args.row, args.english, args.russian)
         elif args.command == "sync":
             result = commands.sync(anki)
-    except commands.CommandError as e:
-        _print(out, {"error": str(e)})
-        return 1
-    _print(out, result)
-    return 0
-
-
-def _print(out: TextIO, result: dict) -> None:
+        code = 0
+    except commands.CommandError as error:
+        result = {"error": str(error)}
+        code = 1
     json.dump(result, out, ensure_ascii=False)
     out.write("\n")
+    return code
 
 
 def main() -> int:

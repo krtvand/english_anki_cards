@@ -1,6 +1,6 @@
 # 02 — Finding the Row again + `discard`
 
-Status: ready-for-agent
+Status: done
 Blocked by: 01
 
 Spec: `../spec.md` ("Row reference and finding the Row again", user stories 25, 36, 37).
@@ -15,7 +15,7 @@ The Row-reference logic shared by every write command, exercised first through `
 
 ## Acceptance criteria
 
-- [ ] `discard` marks `-`; deck unchanged.
-- [ ] A Row inserted above between `next` and `discard` → the correct (shifted) Row is marked.
-- [ ] Two Rows with the same content after a shift → refused, Sheet unchanged.
-- [ ] Row gone entirely → refused, Sheet unchanged.
+- [x] `discard` marks `-`; deck unchanged.
+- [x] A Row inserted above between `next` and `discard` → the correct (shifted) Row is marked.
+- [x] Two Rows with the same content after a shift → refused, Sheet unchanged.
+- [x] Row gone entirely → refused, Sheet unchanged.

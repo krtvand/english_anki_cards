@@ -1,0 +1,3 @@
+# The Sheet is an inbox, Rows are not linked to Notes
+
+Unlike the Greek project, which keeps `notes.json` as the source of truth with an id per note, the Sheet is only an inbox: once a Row is marked `1`, Anki owns its Notes, and later edits on either side do not travel to the other. The approved text is written back to the Row so the Sheet reads as a log, but no id ties them together. This keeps the tool to "read a Pending row, add a Note, mark the Row", matches how the 667 earlier Rows were handled, and avoids the sync machinery that dominates the Greek project. The price is that duplicates are found by searching Anki's text, and a Row is found again by its content rather than an id (Rows shift because new ones are added at the top).

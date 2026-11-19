@@ -61,15 +61,45 @@ def locate_row(sheet: SheetPort, row: int, english: str, russian: str) -> tuple[
 
 
 def add(sheet: SheetPort, anki: AnkiPort, row: int, english: str, russian: str, notes: list[Note]) -> dict:
-    """Put the approved Note into the deck (unless a Note with the same russian is already
-    there), then write it back to the referenced Row and mark the Row Added (`1`)."""
-    if len(notes) != 1:
-        raise CommandError("add takes exactly one Note")
+    """Put the approved Notes into the deck (each unless a Note with the same russian is
+    already there). Each extra Note gets its own Row inserted directly below the referenced
+    Row, filled in and marked Added (`1`); then the first Note is written back to the
+    referenced Row and that Row is marked Added.
+
+    The source Row is written last, so after any failure it still holds what `next` printed
+    and a re-run finds it again; extra Rows already below it are recognised, not repeated."""
     cols, target = locate_row(sheet, row, english, russian)
-    note = notes[0]
-    note_id, added = _ensure_in_deck(anki, note)
-    write_note_to_row(sheet, cols, target.number, note)
-    return {"row": target.number, "anki": c.ADDED, "notes": [{"id": note_id, "added": added}]}
+    results = []
+    for note in notes:
+        note_id, added = _ensure_in_deck(anki, note)
+        results.append({"id": note_id, "added": added})
+    _, rows = parse_rows(sheet.read_all())
+    by_number = {r.number: r for r in rows}
+    for offset, note in enumerate(notes[1:], start=1):
+        number = target.number + offset
+        if not _holds_added(by_number.get(number), note):
+            sheet.insert_row(number, _row_values(cols, note))
+    write_note_to_row(sheet, cols, target.number, notes[0])
+    return {"row": target.number, "anki": c.ADDED, "notes": results}
+
+
+def _holds_added(row: Row | None, note: Note) -> bool:
+    """Whether this Row already logs this Note (same english and russian, marked Added)."""
+    return (
+        row is not None
+        and row.english == note.english.strip()
+        and row.russian == note.russian.strip()
+        and row.anki == c.ADDED
+    )
+
+
+def _row_values(cols: Columns, note: Note) -> list[str]:
+    """A whole sheet row logging this Note as Added, in the Sheet's column order."""
+    cells = {cols.english: note.english, cols.russian: note.russian, cols.comment: note.comment, cols.anki: c.ADDED}
+    values = [""] * (max(cells) + 1)
+    for index, value in cells.items():
+        values[index] = value
+    return values
 
 
 def _ensure_in_deck(anki: AnkiPort, note: Note) -> tuple[int, bool]:

@@ -221,3 +221,98 @@ def test_an_existing_note_with_special_characters_in_its_russian_is_recognised(m
     assert code == 0
     assert out["notes"] == [{"id": 7, "added": False}]
     assert len(anki.notes) == 1
+
+
+def test_several_notes_all_land_in_the_deck_and_each_extra_one_gets_a_row_below_the_source(
+    make_sheet, anki
+):
+    sheet = make_sheet(
+        HEADER,
+        ["leaving the office", "уходя с работы", "several", ""],
+        ["See you tomorrow", "Увидимся завтра", "", ""],
+    )
+
+    code, out = run(
+        add(
+            2, "leaving the office", "уходя с работы",
+            note("I'm off", "Я *пошёл*", "casual"),
+            note("I'm heading out", "Я *ухожу*"),
+            note("Have a good evening", "*Хорошего вечера*"),
+        ),
+        sheet,
+        anki,
+    )
+
+    assert code == 0
+    assert list(anki.notes.values()) == [
+        Note("I'm off", "Я *пошёл*", "casual"),
+        Note("I'm heading out", "Я *ухожу*", ""),
+        Note("Have a good evening", "*Хорошего вечера*", ""),
+    ]
+    assert out == {
+        "row": 2,
+        "anki": "1",
+        "notes": [{"id": i, "added": True} for i in anki.notes],
+    }
+    assert sheet.grid == [
+        HEADER,
+        ["I'm off", "Я *пошёл*", "casual", "1"],
+        ["I'm heading out", "Я *ухожу*", "", "1"],
+        ["Have a good evening", "*Хорошего вечера*", "", "1"],
+        ["See you tomorrow", "Увидимся завтра", "", ""],
+    ]
+
+
+SEVERAL = add(
+    2, "leaving the office", "уходя с работы",
+    note("I'm off", "Я *пошёл*", "casual"),
+    note("I'm heading out", "Я *ухожу*"),
+    note("Have a good evening", "*Хорошего вечера*"),
+)
+SEVERAL_DONE = [
+    HEADER,
+    ["I'm off", "Я *пошёл*", "casual", "1"],
+    ["I'm heading out", "Я *ухожу*", "", "1"],
+    ["Have a good evening", "*Хорошего вечера*", "", "1"],
+    ["See you tomorrow", "Увидимся завтра", "", ""],
+]
+
+
+@pytest.mark.parametrize("writes_that_got_through", [0, 1, 2])
+def test_rerunning_add_with_several_notes_after_a_sheet_failure_duplicates_neither_notes_nor_rows(
+    make_sheet, anki, writes_that_got_through
+):
+    sheet = make_sheet(
+        HEADER,
+        ["leaving the office", "уходя с работы", "several", ""],
+        ["See you tomorrow", "Увидимся завтра", "", ""],
+    )
+    sheet.writes_before_failing = writes_that_got_through
+
+    with pytest.raises(ConnectionError):
+        run(SEVERAL, sheet, anki)
+    assert len(anki.notes) == 3
+    assert sheet.grid[1] == ["leaving the office", "уходя с работы", "several", ""]  # still Pending
+
+    sheet.fail_writes, sheet.writes_before_failing = False, None
+    code, out = run(SEVERAL, sheet, anki)
+
+    assert code == 0
+    assert len(anki.notes) == 3
+    assert [n["added"] for n in out["notes"]] == [False, False, False]
+    assert sheet.grid == SEVERAL_DONE
+
+
+def test_rerunning_add_with_several_notes_after_it_finished_changes_nothing(make_sheet, anki):
+    sheet = make_sheet(
+        HEADER,
+        ["leaving the office", "уходя с работы", "several", ""],
+        ["See you tomorrow", "Увидимся завтра", "", ""],
+    )
+    run(SEVERAL, sheet, anki)
+
+    code, out = run(SEVERAL, sheet, anki)  # the source Row now holds the first Note
+
+    assert code == 1 and set(out) == {"error"}
+    assert len(anki.notes) == 3
+    assert sheet.grid == SEVERAL_DONE

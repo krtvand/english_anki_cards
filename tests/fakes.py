@@ -13,19 +13,33 @@ class FakeSheet:
     def __init__(self, grid: list[list[str]]):
         self.grid = grid
         self.fail_writes = False  # set True to make every write raise, as a dropped connection would
+        self.writes_before_failing: int | None = None  # set N to let N writes through, then fail
 
     def read_all(self) -> list[list[str]]:
         return [list(row) for row in self.grid]
 
-    def update_cells(self, row_number: int, values: dict[int, str]) -> None:
+    def _check_write(self) -> None:
+        if self.writes_before_failing is not None:
+            if self.writes_before_failing == 0:
+                self.fail_writes = True
+            self.writes_before_failing -= 1
         if self.fail_writes:
             raise ConnectionError("FakeSheet: write failed")
+
+    def update_cells(self, row_number: int, values: dict[int, str]) -> None:
+        self._check_write()
         while len(self.grid) < row_number:
             self.grid.append([])
         cells = self.grid[row_number - 1]
         for index, value in values.items():
             cells.extend([""] * (index + 1 - len(cells)))
             cells[index] = value
+
+    def insert_row(self, row_number: int, values: list[str]) -> None:
+        self._check_write()
+        while len(self.grid) < row_number - 1:
+            self.grid.append([])
+        self.grid.insert(row_number - 1, list(values))
 
 
 _TERM = re.compile(r'"((?:[^"\\]|\\.)*)"|(\S+)')

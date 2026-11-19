@@ -27,6 +27,11 @@ class SheetPort(Protocol):
         column index. Other cells of the row are left as they are."""
         ...
 
+    def insert_row(self, row_number: int, values: list[str]) -> None:
+        """Insert a row holding `values` (0-based columns) so that it becomes sheet row
+        `row_number`; the rows from there down shift one down."""
+        ...
+
 
 class AnkiPort(Protocol):
     """The `Sentenses` deck in the running Anki, spoken to in AnkiConnect's terms. Note fields are keyed by

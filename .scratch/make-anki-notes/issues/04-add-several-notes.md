@@ -1,6 +1,6 @@
 # 04 — `add` several Notes from one Row
 
-Status: ready-for-agent
+Status: done
 Blocked by: 03
 
 Spec: `../spec.md` ("CLI commands: add"; user stories 19, 20).
@@ -11,5 +11,5 @@ Spec: `../spec.md` ("CLI commands: add"; user stories 19, 20).
 
 ## Acceptance criteria
 
-- [ ] `add` with two Notes → two Notes in the deck; source Row updated and marked `1`; a new Row directly below with the second Note, marked `1`.
-- [ ] Re-running after a Sheet failure does not duplicate Notes.
+- [x] `add` with two Notes → two Notes in the deck; source Row updated and marked `1`; a new Row directly below with the second Note, marked `1`.
+- [x] Re-running after a Sheet failure does not duplicate Notes.

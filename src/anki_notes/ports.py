@@ -29,7 +29,16 @@ class SheetPort(Protocol):
 
 
 class AnkiPort(Protocol):
-    """The `Sentenses` deck, as AnkiConnect sees it. Field values are Anki's stored HTML."""
+    """The `Sentenses` deck in the running Anki, as AnkiConnect sees it. Field values are
+    Anki's stored HTML."""
+
+    def ping(self) -> bool:
+        """Whether Anki is answering right now. Cheap; must not raise when Anki is down."""
+        ...
+
+    def sync(self) -> None:
+        """Ask Anki to run its own sync (to AnkiWeb)."""
+        ...
 
     def find_notes(self, query: str) -> list[int]:
         """Ids of the Notes matching an Anki search query, e.g. `deck:Sentenses "russian:..."`."""

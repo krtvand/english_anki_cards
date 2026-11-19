@@ -22,6 +22,11 @@ class SheetPort(Protocol):
         Rows may be ragged: trailing empty cells can be missing."""
         ...
 
+    def update_cells(self, row_number: int, values: dict[int, str]) -> None:
+        """Set cells of one sheet row (1-based; the header is row 1), keyed by 0-based
+        column index. Other cells of the row are left as they are."""
+        ...
+
 
 class AnkiPort(Protocol):
     """The `Sentenses` deck. No methods yet: `add`, `find`, `update` and `sync` add theirs."""

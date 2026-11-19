@@ -12,6 +12,14 @@ class FakeSheet:
     def read_all(self) -> list[list[str]]:
         return [list(row) for row in self.grid]
 
+    def update_cells(self, row_number: int, values: dict[int, str]) -> None:
+        while len(self.grid) < row_number:
+            self.grid.append([])
+        cells = self.grid[row_number - 1]
+        for index, value in values.items():
+            cells.extend([""] * (index + 1 - len(cells)))
+            cells[index] = value
+
 
 class FakeAnki:
     """The deck as a dict of Notes keyed by note id."""

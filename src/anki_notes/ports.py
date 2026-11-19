@@ -29,4 +29,12 @@ class SheetPort(Protocol):
 
 
 class AnkiPort(Protocol):
-    """The `Sentenses` deck. No methods yet: `add`, `find`, `update` and `sync` add theirs."""
+    """The `Sentenses` deck in the running Anki. `add`, `find` and `update` add their methods."""
+
+    def ping(self) -> bool:
+        """Whether Anki is answering right now. Cheap; must not raise when Anki is down."""
+        ...
+
+    def sync(self) -> None:
+        """Ask Anki to run its own sync (to AnkiWeb)."""
+        ...

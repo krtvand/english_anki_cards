@@ -5,10 +5,11 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import TextIO
+from typing import Callable, TextIO
 
 from anki_notes import adapters, commands
 from anki_notes.ports import AnkiPort, SheetPort
+from anki_notes.reachability import Clock, ReachableAnki, SystemClock, launch_anki_app
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -23,6 +24,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     discard = sub.add_parser("discard", help="mark a Row Discarded (-)")
     _add_row_reference(discard)
+    sub.add_parser("sync", help="ask Anki to sync")
     return parser
 
 
@@ -37,14 +39,28 @@ def _row_numbers(text: str) -> frozenset[int]:
     return frozenset(int(part) for part in text.split(",") if part.strip())
 
 
-def run_command(argv: list[str], *, sheet: SheetPort, anki: AnkiPort, out: TextIO) -> int:
-    """Run one command against the given ports, write its JSON to `out`, return the exit code."""
+def run_command(
+    argv: list[str],
+    *,
+    sheet: SheetPort,
+    anki: AnkiPort,
+    out: TextIO,
+    launch_anki: Callable[[], None] = launch_anki_app,
+    clock: Clock | None = None,
+) -> int:
+    """Run one command against the given ports, write its JSON to `out`, return the exit code.
+
+    The Anki port is wrapped so the first Anki call launches Anki (via `launch_anki`) and
+    waits for it if it isn't answering. A `CommandError` prints {"error": ...} and exits 1."""
     args = _parser().parse_args(argv)
+    anki = ReachableAnki(anki, launch=launch_anki, clock=clock or SystemClock())
     try:
         if args.command == "next":
             result = commands.next_row(sheet, anki, exclude=args.exclude)
         elif args.command == "discard":
             result = commands.discard(sheet, anki, args.row, args.english, args.russian)
+        elif args.command == "sync":
+            result = commands.sync(anki)
         code = 0
     except commands.CommandError as error:
         result = {"error": str(error)}

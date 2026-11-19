@@ -1,6 +1,6 @@
 # 06 — Anki reachability (launch + poll) and `sync`
 
-Status: ready-for-agent
+Status: done
 Blocked by: 01
 
 Spec: `../spec.md` ("Anki adapter"; user stories 39–41).
@@ -12,6 +12,6 @@ Spec: `../spec.md` ("Anki adapter"; user stories 39–41).
 
 ## Acceptance criteria
 
-- [ ] With a fake Anki that never answers, a command fails with the "couldn't reach Anki" message; the fake launcher was told to start Anki exactly once.
-- [ ] With a fake that answers after launch, the command succeeds.
-- [ ] `sync` calls the Anki sync.
+- [x] With a fake Anki that never answers, a command fails with the "couldn't reach Anki" message; the fake launcher was told to start Anki exactly once.
+- [x] With a fake that answers after launch, the command succeeds.
+- [x] `sync` calls the Anki sync.

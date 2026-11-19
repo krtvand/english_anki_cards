@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from anki_notes import constants as c
+from anki_notes.errors import CommandError
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,10 @@ class Row:
     @property
     def is_pending(self) -> bool:
         return self.anki == c.PENDING and bool(self.english or self.russian)
+
+    def holds(self, english: str, russian: str) -> bool:
+        """Whether this Row's english and russian are exactly these (surrounding spaces aside)."""
+        return self.english == english.strip() and self.russian == russian.strip()
 
 
 @dataclass(frozen=True)
@@ -32,7 +37,7 @@ class Columns:
         names = [cell.strip().lower() for cell in header]
         missing = [h for h in (c.ENGLISH, c.RUSSIAN, c.COMMENT, c.ANKI) if h not in names]
         if missing:
-            raise ValueError(f"Sheet header is missing column(s): {', '.join(missing)}")
+            raise CommandError(f"Sheet header is missing column(s): {', '.join(missing)}")
         return cls(
             english=names.index(c.ENGLISH),
             russian=names.index(c.RUSSIAN),
@@ -44,7 +49,7 @@ class Columns:
 def parse_rows(grid: list[list[str]]) -> tuple[Columns, list[Row]]:
     """Split the grid into its header's Columns and the Rows below it."""
     if not grid:
-        raise ValueError("Sheet is empty: no header row")
+        raise CommandError("Sheet is empty: no header row")
     cols = Columns.from_header(grid[0])
 
     def cell(cells: list[str], i: int) -> str:

@@ -4,18 +4,20 @@ helpers at the top are unit-tested. Both adapters connect lazily, so `--help` ne
 
 import json
 import urllib.request
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from anki_notes import constants as c
+from anki_notes.errors import CommandError
 
 ANKICONNECT_URL = "http://127.0.0.1:8765"
 ANKICONNECT_VERSION = 6
 
 
-class AnkiConnectError(RuntimeError):
-    """AnkiConnect answered, but with an error."""
+class AnkiConnectError(CommandError):
+    """AnkiConnect answered with an error, or stopped answering mid-command."""
 
 
 def unwrap(action: str, reply: dict) -> Any:
@@ -43,6 +45,25 @@ def note_from_info(info: dict) -> dict:
 def notes_from_infos(infos: list[dict]) -> list[dict]:
     """A `notesInfo` reply flattened; the empty entries AnkiConnect gives unknown ids are left out."""
     return [note_from_info(info) for info in infos if info.get("noteId") is not None]
+
+
+def sheet_error(error: Exception, *, spreadsheet_id: str, tab: str) -> CommandError:
+    """A gspread error as a CommandError that says what went wrong and what to do."""
+    from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
+
+    if isinstance(error, SpreadsheetNotFound):
+        return CommandError(
+            f"spreadsheet {spreadsheet_id} not found or not shared with the service account "
+            "(share it with the client_email in the key file)"
+        )
+    if isinstance(error, WorksheetNotFound):
+        return CommandError(f'no tab "{tab}" in spreadsheet {spreadsheet_id}')
+    if isinstance(error, APIError) and error.code == 403:
+        return CommandError(
+            f"Google Sheets permission denied for spreadsheet {spreadsheet_id}: share it with the "
+            f"service account as an editor ({error.error.get('message', '')})"
+        )
+    return CommandError(f"Google Sheets error: {error}")
 
 
 def find_repo_root(start: Path) -> Path:
@@ -73,17 +94,29 @@ class GSpreadSheet:
             import gspread
 
             if not self._key_file.is_file():
-                raise FileNotFoundError(
+                raise CommandError(
                     f"Google service account key not found at {self._key_file} "
                     "(set GOOGLE_APPLICATION_CREDENTIALS or put key.json at the repo root)"
                 )
-            client = gspread.service_account(filename=self._key_file)
-            self._worksheet = client.open_by_key(self._spreadsheet_id).worksheet(self._tab)
+            with self._translated_errors():
+                client = gspread.service_account(filename=self._key_file)
+                self._worksheet = client.open_by_key(self._spreadsheet_id).worksheet(self._tab)
         return self._worksheet
+
+    @contextmanager
+    def _translated_errors(self) -> Iterator[None]:
+        from gspread.exceptions import GSpreadException
+
+        try:
+            yield
+        except GSpreadException as error:
+            raise sheet_error(error, spreadsheet_id=self._spreadsheet_id, tab=self._tab) from error
 
     def read_all(self) -> list[list[str]]:
         """Every row, header first (index 0 = sheet row 1)."""
-        return [[str(cell) for cell in row] for row in self._ws().get_all_values()]
+        ws = self._ws()
+        with self._translated_errors():
+            return [[str(cell) for cell in row] for row in ws.get_all_values()]
 
     def update_cells(self, row_number: int, values: dict[int, str]) -> None:
         """Write cells of one sheet row (1-based); keys are 0-based column indexes."""
@@ -91,13 +124,15 @@ class GSpreadSheet:
 
         cells = [Cell(row_number, col + 1, value) for col, value in values.items()]
         if cells:
-            self._ws().update_cells(cells, value_input_option="RAW")
+            ws = self._ws()
+            with self._translated_errors():
+                ws.update_cells(cells, value_input_option="RAW")
 
     def insert_row(self, row_number: int, values: list[str]) -> None:
         """Insert a row so that it becomes sheet row `row_number`; rows below shift down."""
-        self._ws().insert_row(
-            values, index=row_number, value_input_option="RAW", inherit_from_before=True
-        )
+        ws = self._ws()
+        with self._translated_errors():
+            ws.insert_row(values, index=row_number, value_input_option="RAW", inherit_from_before=True)
 
 
 class AnkiConnect:
@@ -115,14 +150,18 @@ class AnkiConnect:
         request = urllib.request.Request(
             self._url, data=body, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return unwrap(action, json.load(response))
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                reply = json.load(response)
+        except OSError as error:  # URLError, refused/reset connections and timeouts
+            raise AnkiConnectError(f"couldn't talk to AnkiConnect ({action}): {error}") from error
+        return unwrap(action, reply)
 
     def ping(self) -> bool:
         """True if AnkiConnect answers."""
         try:
             self._invoke("version")
-        except OSError:  # URLError, refused/reset connections and timeouts are all OSErrors
+        except AnkiConnectError:
             return False
         return True
 

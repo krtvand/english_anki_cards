@@ -186,8 +186,8 @@ def test_rerunning_add_after_the_sheet_write_failed_finishes_the_row_without_a_s
     argv = add(2, "It's on me", "Я *угощаю*", note("It's on me", "Я *угощаю*", "Also: my treat"))
     sheet.fail_writes = True  # e.g. the network drops after Anki has the Note
 
-    with pytest.raises(ConnectionError):
-        run(argv, sheet, anki)
+    code, out = run(argv, sheet, anki)
+    assert code == 1 and "write failed" in out["error"]
     assert len(anki.notes) == 1
     assert sheet.grid[1] == ["It's on me", "Я *угощаю*", "", ""]
 
@@ -289,8 +289,8 @@ def test_rerunning_add_with_several_notes_after_a_sheet_failure_duplicates_neith
     )
     sheet.writes_before_failing = writes_that_got_through
 
-    with pytest.raises(ConnectionError):
-        run(SEVERAL, sheet, anki)
+    code, out = run(SEVERAL, sheet, anki)
+    assert code == 1 and "write failed" in out["error"]
     assert len(anki.notes) == 3
     assert sheet.grid[1] == ["leaving the office", "уходя с работы", "several", ""]  # still Pending
 
@@ -316,3 +316,34 @@ def test_rerunning_add_with_several_notes_after_it_finished_changes_nothing(make
     assert code == 1 and set(out) == {"error"}
     assert len(anki.notes) == 3
     assert sheet.grid == SEVERAL_DONE
+
+
+def test_a_row_inserted_above_while_anki_is_being_written_does_not_make_add_write_a_stale_row(make_sheet):
+    sheet = make_sheet(HEADER, ["See you", "Увидимся", "", ""], ["Take care", "Береги себя", "", ""])
+
+    class PhoneInsertsDuringAdd(FakeAnki):
+        def add_note(self, english, russian, comment):
+            sheet.grid.insert(1, ["Cheers", "Будем", "", ""])  # jotted down on the phone meanwhile
+            return super().add_note(english, russian, comment)
+
+    code, out = run(add(2, "See you", "Увидимся", note("See you later", "Увидимся")), sheet, PhoneInsertsDuringAdd())
+
+    assert code == 0
+    assert out["row"] == 3
+    assert sheet.grid == [
+        HEADER,
+        ["Cheers", "Будем", "", ""],
+        ["See you later", "Увидимся", "", "1"],
+        ["Take care", "Береги себя", "", ""],
+    ]
+
+
+def test_rerunning_add_for_a_note_without_russian_reuses_the_note_with_the_same_english(make_sheet):
+    anki = FakeAnki({5: Note("It's on me &amp; you", "", ""), 6: Note("It's on me &amp; you, really", "", "")})
+    sheet = make_sheet(HEADER, ["It's on me & you", "", "", ""])
+
+    code, out = run(add(2, "It's on me & you", "", note("It's on me & you", "")), sheet, anki)
+
+    assert code == 0
+    assert out["notes"] == [{"id": 5, "added": False}]
+    assert len(anki.notes) == 2

@@ -4,16 +4,26 @@ import argparse
 import json
 import os
 import sys
+import traceback
 from pathlib import Path
-from typing import Callable, TextIO
+from typing import Callable, NoReturn, TextIO
 
 from anki_notes import adapters, commands
+from anki_notes import constants as c
+from anki_notes.errors import CommandError
 from anki_notes.ports import AnkiPort, Note, SheetPort
 from anki_notes.reachability import Clock, ReachableAnki, SystemClock, launch_anki_app
 
 
+class _Parser(argparse.ArgumentParser):
+    """An argument parser whose usage errors become a CommandError (so: JSON, exit 1)."""
+
+    def error(self, message: str) -> NoReturn:
+        raise CommandError(f"{self.prog}: {message}")
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="anki-notes")
+    parser = _Parser(prog="anki-notes")
     sub = parser.add_subparsers(dest="command", required=True)
     next_ = sub.add_parser("next", help="print the topmost Pending row")
     next_.add_argument(
@@ -45,29 +55,60 @@ def _parser() -> argparse.ArgumentParser:
     _add_row_reference(update)
     update.add_argument("--note-id", type=int, required=True, help="id of the Note to update, as find printed it")
     update.add_argument("--new-english", default="", help="new english for the Note")
-    update.add_argument("--new-comment", default="", help="new comment for the Note (plain text/Markdown)")
+    update.add_argument(
+        "--new-comment", default="", help="replaces the Note's whole comment (plain text/Markdown)"
+    )
+    update.add_argument(
+        "--append-comment",
+        default="",
+        help="added after the Note's existing comment, which is kept as it is (plain text/Markdown)",
+    )
+    update.add_argument(
+        "--fields-json",
+        default=None,
+        help='instead of the --new-*/--append-* flags: a JSON object with any of "english", '
+        '"comment", "append_comment"; pass - to read it from stdin',
+    )
     sub.add_parser("sync", help="ask Anki to sync")
     return parser
 
 
+def _load_json(text: str, flag: str):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise CommandError(f"{flag} is not valid JSON: {error}") from error
+
+
 def _parse_notes(text: str) -> list[Note]:
     """The approved Notes from `--notes-json`: a list of {english, russian, comment} objects."""
-    try:
-        items = json.loads(text)
-    except json.JSONDecodeError as error:
-        raise commands.CommandError(f"--notes-json is not valid JSON: {error}") from error
+    items = _load_json(text, "--notes-json")
     if not isinstance(items, list) or not items:
-        raise commands.CommandError("--notes-json must be a non-empty JSON list of Notes")
+        raise CommandError("--notes-json must be a non-empty JSON list of Notes")
     notes = []
     for item in items:
         if not isinstance(item, dict) or not all(
-            isinstance(item.get(k, ""), str) for k in ("english", "russian", "comment")
+            isinstance(item.get(k, ""), str) for k in (c.ENGLISH, c.RUSSIAN, c.COMMENT)
         ):
-            raise commands.CommandError(
-                "each Note in --notes-json must be an object with string english/russian/comment"
-            )
-        notes.append(Note(item.get("english", ""), item.get("russian", ""), item.get("comment", "")))
+            raise CommandError("each Note in --notes-json must be an object with string english/russian/comment")
+        notes.append(Note(item.get(c.ENGLISH, ""), item.get(c.RUSSIAN, ""), item.get(c.COMMENT, "")))
     return notes
+
+
+_MERGE_KEYS = {c.ENGLISH: "new_english", c.COMMENT: "new_comment", "append_comment": "append_comment"}
+
+
+def _parse_merge_fields(text: str) -> dict[str, str]:
+    """The `update` keyword arguments from `--fields-json`: an object with english/comment/append_comment."""
+    fields = _load_json(text, "--fields-json")
+    if not isinstance(fields, dict) or not fields:
+        raise CommandError('--fields-json must be a JSON object with any of "english", "comment", "append_comment"')
+    unknown = set(fields) - set(_MERGE_KEYS)
+    if unknown:
+        raise CommandError(f"--fields-json has unknown key(s): {', '.join(sorted(unknown))}")
+    if not all(isinstance(v, str) for v in fields.values()):
+        raise CommandError("--fields-json values must be strings")
+    return {_MERGE_KEYS[k]: v for k, v in fields.items()}
 
 
 def _add_row_reference(parser: argparse.ArgumentParser) -> None:
@@ -81,6 +122,29 @@ def _row_numbers(text: str) -> frozenset[int]:
     return frozenset(int(part) for part in text.split(",") if part.strip())
 
 
+def _dispatch(args: argparse.Namespace, sheet: SheetPort, anki: AnkiPort, stdin: TextIO) -> dict:
+    def read(value: str) -> str:
+        return stdin.read() if value == "-" else value
+
+    if args.command == "next":
+        return commands.next_row(sheet, exclude=args.exclude)
+    if args.command == "discard":
+        return commands.discard(sheet, args.row, args.english, args.russian)
+    if args.command == "add":
+        notes = _parse_notes(read(args.notes_json))
+        return commands.add(sheet, anki, args.row, args.english, args.russian, notes)
+    if args.command == "find":
+        return commands.find(anki, target=args.target, english=args.english)
+    if args.command == "update":
+        flags = {"new_english": args.new_english, "new_comment": args.new_comment, "append_comment": args.append_comment}
+        if args.fields_json is not None:
+            if any(flags.values()):
+                raise CommandError("give --fields-json or the --new-*/--append-* flags, not both")
+            flags = _parse_merge_fields(read(args.fields_json))
+        return commands.update(sheet, anki, args.row, args.english, args.russian, note_id=args.note_id, **flags)
+    return commands.sync(anki)
+
+
 def run_command(
     argv: list[str],
     *,
@@ -90,37 +154,24 @@ def run_command(
     launch_anki: Callable[[], None] = launch_anki_app,
     clock: Clock | None = None,
     stdin: TextIO | None = None,
+    err: TextIO | None = None,
 ) -> int:
     """Run one command against the given ports, write its JSON to `out`, return the exit code.
 
     The Anki port is wrapped so the first Anki call launches Anki (via `launch_anki`) and
-    waits for it if it isn't answering. A `CommandError` prints {"error": ...} and exits 1.
-    `stdin` is where `--notes-json -` reads from (default: sys.stdin)."""
-    args = _parser().parse_args(argv)
-    anki = ReachableAnki(anki, launch=launch_anki, clock=clock or SystemClock())
+    waits for it if it isn't answering. Every failure prints {"error": ...} and exits 1:
+    a `CommandError` with its message as is; anything else as "<type>: <message>", with its
+    traceback written to `err` (default: sys.stderr). `stdin` is where `-` reads from
+    (default: sys.stdin)."""
     try:
-        if args.command == "next":
-            result = commands.next_row(sheet, anki, exclude=args.exclude)
-        elif args.command == "discard":
-            result = commands.discard(sheet, anki, args.row, args.english, args.russian)
-        elif args.command == "add":
-            notes_json = (stdin or sys.stdin).read() if args.notes_json == "-" else args.notes_json
-            result = commands.add(
-                sheet, anki, args.row, args.english, args.russian, _parse_notes(notes_json)
-            )
-        elif args.command == "find":
-            result = commands.find(anki, target=args.target, english=args.english)
-        elif args.command == "update":
-            result = commands.update(
-                sheet, anki, args.row, args.english, args.russian,
-                note_id=args.note_id, new_english=args.new_english, new_comment=args.new_comment,
-            )
-        elif args.command == "sync":
-            result = commands.sync(anki)
-        code = 0
-    except commands.CommandError as error:
-        result = {"error": str(error)}
-        code = 1
+        args = _parser().parse_args(argv)
+        reachable = ReachableAnki(anki, launch=launch_anki, clock=clock or SystemClock())
+        result, code = _dispatch(args, sheet, reachable, stdin or sys.stdin), 0
+    except CommandError as error:
+        result, code = {"error": str(error)}, 1
+    except Exception as error:  # noqa: BLE001 - the boundary: every failure becomes JSON
+        traceback.print_exc(file=err or sys.stderr)
+        result, code = {"error": f"{type(error).__name__}: {error}"}, 1
     json.dump(result, out, ensure_ascii=False)
     out.write("\n")
     return code

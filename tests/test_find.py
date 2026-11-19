@@ -67,6 +67,14 @@ def test_find_returns_empty_list_when_nothing_matches(make_sheet):
     assert out == {"notes": []}
 
 
+def test_find_by_target_matches_html_special_characters_as_anki_stores_them(make_sheet):
+    anki = FakeAnki({31: Note("Tom and Jerry", "Том &amp; Джерри &lt;кот&gt;", "")})
+
+    _, out = run(["find", "--target", "Том & Джерри <кот>"], make_sheet(["english"]), anki)
+
+    assert [n["id"] for n in out["notes"]] == [31]
+
+
 def test_find_escapes_anki_special_characters_in_user_text(make_sheet):
     anki = FakeAnki({21: Note("Ratio 1:2", "соотношение 1:2 *в* целом", "")})
 

@@ -4,6 +4,7 @@ are verified by hand (spec: Testing Decisions)."""
 from pathlib import Path
 
 import pytest
+from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
 
 from anki_notes.adapters import (
     AnkiConnectError,
@@ -11,8 +12,10 @@ from anki_notes.adapters import (
     find_repo_root,
     note_from_info,
     notes_from_infos,
+    sheet_error,
     unwrap,
 )
+from anki_notes.errors import CommandError
 
 
 def test_notes_info_entry_is_flattened_to_id_and_the_three_fields():
@@ -63,6 +66,35 @@ def test_repo_root_is_the_nearest_folder_above_with_a_pyproject(tmp_path):
 
 def test_google_key_defaults_to_key_json_at_the_repo_root(tmp_path):
     assert credentials_path({}, tmp_path) == tmp_path / "key.json"
+
+
+class _Response:
+    def __init__(self, code, message):
+        self._error = {"code": code, "message": message, "status": "X"}
+        self.text = message
+
+    def json(self):
+        return {"error": self._error}
+
+
+def test_ankiconnect_errors_are_command_errors():
+    assert issubclass(AnkiConnectError, CommandError)
+
+
+@pytest.mark.parametrize(
+    "error, expected",
+    [
+        (SpreadsheetNotFound(), "not found or not shared"),
+        (WorksheetNotFound("phrases"), 'no tab "phrases"'),
+        (APIError(_Response(403, "The caller does not have permission")), "permission denied"),
+        (APIError(_Response(500, "Internal error")), "Internal error"),
+    ],
+)
+def test_google_sheets_errors_become_command_errors_that_say_what_to_do(error, expected):
+    translated = sheet_error(error, spreadsheet_id="SID", tab="phrases")
+
+    assert isinstance(translated, CommandError)
+    assert expected in str(translated)
 
 
 def test_google_key_comes_from_the_environment_when_set(tmp_path):

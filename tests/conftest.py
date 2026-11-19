@@ -8,7 +8,7 @@ from fakes import FakeAnki, FakeClock, FakeLauncher, FakeSheet
 from anki_notes.cli import run_command
 
 
-def run(argv, sheet, anki, *, launch_anki=None, clock=None):
+def run(argv, sheet, anki, *, launch_anki=None, clock=None, stdin=None, err=None):
     """Run one CLI command against the fakes; return (exit code, parsed JSON output).
     Never launches the real Anki app or really sleeps: launcher and clock default to fakes."""
     out = io.StringIO()
@@ -19,6 +19,8 @@ def run(argv, sheet, anki, *, launch_anki=None, clock=None):
         out=out,
         launch_anki=launch_anki or FakeLauncher(),
         clock=clock or FakeClock(),
+        stdin=io.StringIO(stdin) if isinstance(stdin, str) else stdin,
+        err=err if err is not None else io.StringIO(),
     )
     return code, json.loads(out.getvalue())
 

@@ -21,7 +21,7 @@ def test_next_prints_the_topmost_pending_row(make_sheet, anki):
     }
 
 
-def test_blank_added_and_discarded_rows_are_skipped(make_sheet, anki):
+def test_blank_added_and_discarded_rows_are_not_offered(make_sheet, anki):
     sheet = make_sheet(
         HEADER,
         ["", "", "", ""],

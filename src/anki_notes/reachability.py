@@ -8,7 +8,7 @@ import subprocess
 import time
 from typing import Any, Callable, Protocol
 
-from anki_notes.commands import CommandError
+from anki_notes.errors import CommandError
 from anki_notes.ports import AnkiPort
 
 WAIT_SECONDS = 20.0

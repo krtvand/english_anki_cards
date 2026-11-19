@@ -10,14 +10,14 @@ You run one session: take the topmost Pending row, write a Proposal, get the use
 
 ## The CLI
 
-Run every command from the repo root as `uv run anki-notes <command> ...`. Each prints one line of JSON. A failure prints `{"error": "..."}` and exits 1: show the user the message, and nothing else in that step counts as done. The first command that touches Anki starts Anki itself if it is closed.
+Run every command from the repo root as `uv run anki-notes <command> ...`. Each prints one line of JSON. Any failure (bad arguments, Sheet or Anki trouble, a bug) prints `{"error": "..."}` and exits 1: show the user the message, and nothing else in that step counts as done. `add` and `update` are safe to re-run after a failure. The first command that touches Anki starts Anki itself if it is closed.
 
 | Command | Prints |
 |---|---|
 | `next [--exclude 9,23]` | `{"row", "english", "russian", "comment"}` or `{"nothing_left": true}` |
 | `find --target T --english E` | `{"notes": [{"id", "english", "russian", "comment"}, ...]}` |
 | `add --row N --english E --russian R --notes-json -` | `{"row", "anki": "1", "notes": [{"id", "added"}, ...]}` |
-| `update --row N --english E --russian R --note-id ID [--new-english X] [--new-comment Y]` | `{"row", "anki": "1", "note_id"}` |
+| `update --row N --english E --russian R --note-id ID --fields-json -` | `{"row", "anki": "1", "note_id"}` |
 | `discard --row N --english E --russian R` | `{"row", "anki": "-"}` |
 | `sync` | `{"synced": true}` |
 
@@ -31,9 +31,21 @@ uv run anki-notes add --row 12 --english "My older daughter is ten." --russian "
 EOF
 ```
 
-The first Note is written back to the source Row and marks it `1`; each further Note is added to Anki and inserted as a new Row directly below the source Row, marked `1`. `"added": false` means a Note with exactly that russian was already in the deck and was reused, not duplicated. That makes `add` safe to re-run after any failure: run the same command again. It also means "add anyway" can't create a second Note with *identical* russian; vary the russian if the user wants one.
+The first Note is written back to the source Row and marks it `1`; each further Note is added to Anki and inserted as a new Row directly below the source Row, marked `1`. `"added": false` means a Note with exactly that russian (or, for a Note with empty russian, exactly that english) was already in the deck and was reused, not duplicated. That makes `add` safe to re-run after any failure: run the same command again. It also means "add anyway" can't create a second Note with *identical* russian; vary the russian if the user wants one.
 
-**`update` (Merge).** `--new-english` and `--new-comment` each *replace* that whole field of the Note; omit the one you leave alone. `find` prints the Note's comment as Anki HTML, so a new comment must be the full merged comment (the Note's existing content, rewritten as plain text/Markdown, plus the Row's insight). Pass multi-line text with `--new-comment "$(cat <<'EOF' ... EOF)"`. `update` marks the Row `1` and leaves its text unchanged.
+**`update` (Merge).** Send the changes as a JSON object on stdin, with any of these keys (leave out what stays as it is):
+
+- `"append_comment"`: the Row's insight, added after the Note's existing comment, which is kept exactly as stored. **Prefer this for a Merge**: it loses nothing.
+- `"english"`: replaces the Note's english.
+- `"comment"`: replaces the Note's whole comment. Only when the user wants the comment rewritten; `find` prints it as Anki HTML, so the new one must restate everything worth keeping, in plain text/Markdown. Not together with `"append_comment"`.
+
+```sh
+uv run anki-notes update --row 14 --english "My eldest daughter" --russian "Моя *старшая* дочь" --note-id 1700000000001 --fields-json - <<'EOF'
+{"append_comment": "**eldest** — старшая из трёх и более; *older* — из двух."}
+EOF
+```
+
+The same is available as flags (`--new-english`, `--new-comment`, `--append-comment`), but stdin keeps quotes and line breaks intact. `update` marks the Row `1` and leaves its text unchanged.
 
 Write comments in plain text or light Markdown (line breaks, `**bold**`, `-` lists); the CLI converts them to HTML for Anki and keeps them as typed in the Sheet.
 
@@ -46,7 +58,7 @@ Keep a session list of Skipped Row numbers, starting empty.
 3. **Proposal.** Write it by the rules in "Writing a Proposal" and show:
    - the Row as it is (row number, english, russian, comment);
    - each proposed Note, english / russian / comment, with **(changed)** beside exactly the fields that differ from the Row;
-   - if a found Note is a likely duplicate: that Note, and the choices discard / add anyway / Merge (with the Merge you would make: which Note, new english and/or full new comment).
+   - if a found Note is a likely duplicate: that Note, and the choices discard / add anyway / Merge (with the Merge you would make: which Note, the comment text to append, and a new english if any).
 
    Then ask: approve, edit, skip, or discard.
 4. **Act.**

@@ -2,10 +2,12 @@
 
 import argparse
 import json
+import os
 import sys
+from pathlib import Path
 from typing import TextIO
 
-from anki_notes import commands
+from anki_notes import adapters, commands
 from anki_notes.ports import AnkiPort, SheetPort
 
 
@@ -37,7 +39,15 @@ def run_command(argv: list[str], *, sheet: SheetPort, anki: AnkiPort, out: TextI
 
 
 def main() -> int:
-    raise NotImplementedError("real Sheet and Anki adapters arrive in ticket 07")
+    """Console script entry point: the real Sheet and Anki adapters, output to stdout."""
+    repo_root = adapters.find_repo_root(Path(__file__).resolve())
+    key_file = adapters.credentials_path(os.environ, repo_root)
+    return run_command(
+        sys.argv[1:],
+        sheet=adapters.GSpreadSheet(key_file),
+        anki=adapters.AnkiConnect(),
+        out=sys.stdout,
+    )
 
 
 if __name__ == "__main__":

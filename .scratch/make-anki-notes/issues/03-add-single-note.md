@@ -1,6 +1,6 @@
 # 03 — `add` one Note: comment→HTML, write-back, safe re-run
 
-Status: ready-for-agent
+Status: done
 Blocked by: 02
 
 Spec: `../spec.md` ("CLI commands: add", "Order of writes and safe re-runs", "Comment conversion"; user stories 31–35, 38).
@@ -14,7 +14,7 @@ Spec: `../spec.md` ("CLI commands: add", "Order of writes and safe re-runs", "Co
 
 ## Acceptance criteria
 
-- [ ] Note lands in the fake deck with converted comment; Row updated and marked `1`.
-- [ ] Comment conversion checked through `add`: line breaks, bold, italic, lists, headings, HTML escaping, russian asterisks literal.
-- [ ] Sheet write fails after the Anki write → a second `add` finishes the Sheet step and the deck has exactly one such Note.
-- [ ] Shifted/ambiguous Row behaviour from 02 holds for `add` (ambiguous → nothing written to the Sheet).
+- [x] Note lands in the fake deck with converted comment; Row updated and marked `1`.
+- [x] Comment conversion checked through `add`: line breaks, bold, italic, lists, headings, HTML escaping, russian asterisks literal.
+- [x] Sheet write fails after the Anki write → a second `add` finishes the Sheet step and the deck has exactly one such Note.
+- [x] Shifted/ambiguous Row behaviour from 02 holds for `add` (ambiguous → nothing written to the Sheet).

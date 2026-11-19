@@ -2,7 +2,8 @@
 JSON-ready dict. This is the test seam."""
 
 from anki_notes import constants as c
-from anki_notes.ports import AnkiPort, SheetPort
+from anki_notes.html import comment_to_html, escape_text
+from anki_notes.ports import AnkiPort, Note, SheetPort
 from anki_notes.rows import Columns, Row, parse_rows
 
 
@@ -49,6 +50,49 @@ def locate_row(sheet: SheetPort, row: int, english: str, russian: str) -> tuple[
             f"({numbers}); not sure which one is meant, so nothing was written"
         )
     return cols, found[0]
+
+
+def add(sheet: SheetPort, anki: AnkiPort, row: int, english: str, russian: str, notes: list[Note]) -> dict:
+    """Put the approved Note into the deck (unless a Note with the same russian is already
+    there), then write it back to the referenced Row and mark the Row Added (`1`)."""
+    if len(notes) != 1:
+        raise CommandError("add takes exactly one Note")
+    cols, target = locate_row(sheet, row, english, russian)
+    note = notes[0]
+    note_id, added = _ensure_in_deck(anki, note)
+    write_note_to_row(sheet, cols, target.number, note)
+    return {"row": target.number, "anki": c.ADDED, "notes": [{"id": note_id, "added": added}]}
+
+
+def _ensure_in_deck(anki: AnkiPort, note: Note) -> tuple[int, bool]:
+    """The id of the deck's Note with exactly this russian, adding the Note if there is none.
+    Returns (id, whether it was added now). This is what makes re-running `add` safe."""
+    russian = escape_text(note.russian)
+    candidates = anki.find_notes(f'deck:{c.DECK} "russian:{_anki_search_escape(russian)}"')
+    for info in anki.notes_info(candidates) if candidates else []:
+        if info["russian"] == russian:
+            return info["id"], False
+    return anki.add_note(escape_text(note.english), russian, comment_to_html(note.comment)), True
+
+
+def _anki_search_escape(text: str) -> str:
+    """Make `text` match literally inside a quoted Anki field search."""
+    for ch in ("\\", '"', "*", "_"):
+        text = text.replace(ch, "\\" + ch)
+    return text
+
+
+def write_note_to_row(sheet: SheetPort, cols: Columns, row_number: int, note: Note) -> None:
+    """Write a Note's plain-text english/russian/comment to a sheet row and mark it Added."""
+    sheet.update_cells(
+        row_number,
+        {
+            cols.english: note.english,
+            cols.russian: note.russian,
+            cols.comment: note.comment,
+            cols.anki: c.ADDED,
+        },
+    )
 
 
 def discard(sheet: SheetPort, anki: AnkiPort, row: int, english: str, russian: str) -> dict:

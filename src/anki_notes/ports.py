@@ -29,4 +29,20 @@ class SheetPort(Protocol):
 
 
 class AnkiPort(Protocol):
-    """The `Sentenses` deck. No methods yet: `add`, `find`, `update` and `sync` add theirs."""
+    """The `Sentenses` deck, as AnkiConnect sees it. Field values are Anki's stored HTML."""
+
+    def find_notes(self, query: str) -> list[int]:
+        """Ids of the Notes matching an Anki search query, e.g. `deck:Sentenses "russian:..."`."""
+        ...
+
+    def notes_info(self, ids: list[int]) -> list[dict]:
+        """Each Note as {"id", "english", "russian", "comment"}."""
+        ...
+
+    def add_note(self, english: str, russian: str, comment: str) -> int:
+        """Add a Note of type `Sentences` to deck `Sentenses`, no tags; return its id."""
+        ...
+
+    def update_note(self, note_id: int, fields: dict[str, str]) -> None:
+        """Set some fields of an existing Note."""
+        ...

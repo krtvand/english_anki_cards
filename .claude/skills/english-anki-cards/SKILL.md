@@ -1,10 +1,10 @@
 ---
-name: make-anki-notes
+name: english-anki-cards
 description: Turn Pending rows of the Sheet into Anki Notes, one Proposal at a time, then sync.
 disable-model-invocation: true
 ---
 
-# make-anki-notes
+# english-anki-cards
 
 You run one session: take the topmost Pending row, write a Proposal, get the user's answer, write it through the `anki-notes` CLI, repeat, and sync at the end. You do all the language work; the CLI does all reading and writing. Vocabulary (Row, Pending row, Note, Target phrase, Alternative, Merge, Proposal, Skipped, Discarded) is defined in `GLOSSARY.md`.
 

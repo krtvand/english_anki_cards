@@ -1,7 +1,7 @@
 # english-anki-cards
 
 Turn sentences jotted down in the "phrases" tab of a Google Sheet into Notes in the Anki
-`Sentenses` deck. The `make-anki-notes` Claude Code skill does the language work; the
+`Sentenses` deck. The `english-anki-cards` Claude Code skill does the language work; the
 `anki-notes` CLI (`uv run anki-notes --help`) does all reading and writing.
 
 ## One-time setup
